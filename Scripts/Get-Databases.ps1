@@ -1,5 +1,5 @@
 param (
-    [string]$ServerInstance = "localhost",
+    [string[]]$ServerInstances = @("localhost"),
     [string]$Database = "master",
     [string]$Username,
     [string]$Password
@@ -8,24 +8,42 @@ param (
 # Load the SQL Server module
 Import-Module SqlServer
 
-# Create a SQL Server connection
-$SqlConnection = New-Object System.Data.SqlClient.SqlConnection
-$SqlConnection.ConnectionString = "Server=$ServerInstance;Database=$Database;User Id=$Username;Password=$Password;"
+foreach ($ServerInstance in $ServerInstances) {
+    Write-Output "Databases on server: $ServerInstance"
+    
+    # Create a SQL Server connection string
+    if ($PSBoundParameters.ContainsKey('Username') -and $PSBoundParameters.ContainsKey('Password')) {
+        $connectionString = "Server=$ServerInstance;Database=$Database;User Id=$Username;Password=$Password;"
+    }
+    else {
+        $connectionString = "Server=$ServerInstance;Database=$Database;Integrated Security=True;"
+    }
 
-# Open the connection
-$SqlConnection.Open()
+    # Create a SQL Server connection
+    $SqlConnection = New-Object System.Data.SqlClient.SqlConnection
+    $SqlConnection.ConnectionString = $connectionString
 
-# Create a SQL command
-$SqlCommand = $SqlConnection.CreateCommand()
-$SqlCommand.CommandText = "SELECT name FROM sys.databases"
+    try {
+        # Open the connection
+        $SqlConnection.Open()
 
-# Execute the command and get the results
-$SqlDataReader = $SqlCommand.ExecuteReader()
+        # Create a SQL command
+        $SqlCommand = $SqlConnection.CreateCommand()
+        $SqlCommand.CommandText = "SELECT name FROM sys.databases"
 
-# Output the results
-while ($SqlDataReader.Read()) {
-    Write-Output $SqlDataReader["name"]
+        # Execute the command and get the results
+        $SqlDataReader = $SqlCommand.ExecuteReader()
+
+        # Output the results
+        while ($SqlDataReader.Read()) {
+            Write-Output $SqlDataReader["name"]
+        }
+    }
+    catch {
+        Write-Error "Failed to connect to server: $ServerInstance, Error: $_"
+    }
+    finally {
+        # Close the connection
+        $SqlConnection.Close()
+    }
 }
-
-# Close the connection
-$SqlConnection.Close()
